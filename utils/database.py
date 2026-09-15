@@ -1,4 +1,3 @@
-import os
 import psycopg2
 
 class DatabaseUtil:
@@ -53,12 +52,29 @@ class DatabaseUtil:
 
         return schema_info_context
 
+    def execute_sql(self, query):
+        try:
+            connection = self.connection
+            cursor = connection.cursor()
+            cursor.execute(query)
+            result = cursor.fetchall()
+            connection.commit()
+            return str(result)
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
 obj = DatabaseUtil({
-    "host": os.environ["host"],
-    "port": int(os.environ["port"]),
-    "user": os.environ["user"],
-    "password": os.environ["password"],
-    "dbname": os.environ["database"]
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "admin",
+    "dbname": "postgres"
 })
 
 result = obj.schema_details("public")

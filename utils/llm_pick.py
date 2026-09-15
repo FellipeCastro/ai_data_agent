@@ -15,6 +15,6 @@ def pick_llm(level: str):
 
     return llm
 
-# testing the function
-llm_obj = pick_llm("low")  
-llm_obj.invoke("What is the capital of France?") 
+# # testing the function
+# llm_obj = pick_llm("low")  
+# print(llm_obj.invoke("What is the capital of France?"))
