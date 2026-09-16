@@ -3,10 +3,12 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from IPython.display import display, Image
 from utils.llm_pick import pick_llm
 from utils.database import DatabaseUtil
 from Models.schema import AgentSchema, JudgeSchema
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph import StateGraph, START, END
 
 # agent code 
 def curate_ques(state: AgentSchema) -> AgentSchema:
@@ -24,13 +26,13 @@ def curate_ques(state: AgentSchema) -> AgentSchema:
 def prompt_query_context(state: AgentSchema) -> AgentSchema:
     curated_question = state.curated_question
 
-    conn_details = DatabaseUtil({
+    conn_details = {
         "host": os.environ["host"],
         "port": int(os.environ["port"]),
         "user": os.environ["user"],
         "password": os.environ["password"],
         "dbname": os.environ["database"]
-    })
+    }
 
     obj = DatabaseUtil(conn_details)
 
@@ -82,23 +84,31 @@ def is_safe_sql(state: AgentSchema) -> AgentSchema:
     Here's the SQL query to evaluate:
     {sql_query}"""
 
-    response = llm_judge.invoke(prompt).content
+    response = llm_judge.invoke(prompt).model_dump()
 
-    state.is_safe_sql = response["answer"]
+    state.is_safe = response["answer"]
     state.comments = response["comments"]
+
+    return state
+
+def canceled_sql(state: AgentSchema) -> AgentSchema:
+    comments = state.comments
+
+    state.final_answer = f"The generated SQL query was deemed unsafe to execute. The reason provided by the judge is: {comments}. Therefore, the SQL query will not be executed."
+    state.messages = state.messages + [AIMessage(content=f"{state.final_answer}")]
 
     return state
 
 def execute_sql(state: AgentSchema) -> AgentSchema:
     sql_query = state.generated_sql_query
 
-    conn_details = DatabaseUtil({
+    conn_details = {
         "host": os.environ["host"],
         "port": int(os.environ["port"]),
         "user": os.environ["user"],
         "password": os.environ["password"],
         "dbname": os.environ["database"]
-    })
+    }
 
     obj = DatabaseUtil(conn_details)
 
@@ -130,3 +140,71 @@ def represent_final_answer(state: AgentSchema) -> AgentSchema:
     state.messages = state.messages + [AIMessage(content="f{llm_response}")]
 
     return state
+
+# Graph Building
+sql_agent_graph = StateGraph(AgentSchema)
+
+# nodes
+sql_agent_graph.add_node(curate_ques,name="curate_ques")
+sql_agent_graph.add_node(prompt_query_context,name="prompt_query_context")
+sql_agent_graph.add_node(generate_sql,name="generate_sql")
+sql_agent_graph.add_node(is_safe_sql,name="is_safe_sql")
+sql_agent_graph.add_node(canceled_sql,name="canceled_sql")
+sql_agent_graph.add_node(execute_sql,name="execute_sql")
+sql_agent_graph.add_node(represent_final_answer,name="represent_final_answer")
+
+# edges
+sql_agent_graph.add_edge(START, "curate_ques")
+sql_agent_graph.add_edge("curate_ques", "prompt_query_context")
+sql_agent_graph.add_edge("prompt_query_context", "generate_sql")
+sql_agent_graph.add_edge("generate_sql", "is_safe_sql")
+
+def is_safe_sql_edge(state: AgentSchema) -> str:
+    is_safe = state.is_safe
+
+    if is_safe.lower() == "yes":
+        return "execute_sql"
+    else:
+        return "canceled_sql"
+
+sql_agent_graph.add_conditional_edges("is_safe_sql", is_safe_sql_edge, { "execute_sql": "execute_sql", "canceled_sql": "canceled_sql" })
+
+sql_agent_graph.add_edge("canceled_sql", END)
+sql_agent_graph.add_edge("execute_sql", "represent_final_answer")
+sql_agent_graph.add_edge("represent_final_answer", END)
+
+# compile
+sql_analyst = sql_agent_graph.compile()
+
+
+if __name__ == "__main__":
+    # img = Image(sql_analyst.get_graph().draw_mermaid_png())
+    # with open("sql_analyst_graph.png", "wb") as f:
+    #     f.write(img.data)
+
+    input_schema = {
+        "messages": [],
+        "user_question": "What are the different types of Payment Methods we have in our database",
+        "curated_question": "",
+        "prompt_query_context": "",
+        "generated_sql_query": "",
+        "is_safe": "No",
+        "comments": "",
+        "sql_query_execution_result": "",
+        "final_answer": ""
+    }
+
+    sql_analyst_response = sql_analyst.invoke(input_schema)
+
+    print(sql_analyst_response['messages'])  # Print the final output of the graph execution
+    print("********************************")
+
+    print(sql_analyst_response['generated_sql_query'])  # Print the generated SQL query
+
+    print("********************************")
+
+    print(sql_analyst_response['sql_query_execution_result'])  # Print the result of executing the SQL query
+
+    print("********************************")
+
+    print(sql_analyst_response['prompt_query_context'])  # Print the prompt query context
