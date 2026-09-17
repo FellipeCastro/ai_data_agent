@@ -5,11 +5,17 @@ load_dotenv()
 
 def pick_llm(level: str):
     if level.lower() == "low":
-        llm = ChatOpenAI(model_name="gpt-5.6-luna", temperature=0)
+        llm = ChatOpenAI(model_name="gpt-5.6-luna", temperature=0, model_kwargs={
+        "reasoning_effort": "none"
+        })
     elif level.lower() == "medium":
-        llm = ChatOpenAI(model_name="gpt-5.6-terra", temperature=0)
+        llm = ChatOpenAI(model_name="gpt-5.6-terra", temperature=0, model_kwargs={
+        "reasoning_effort": "none"
+        })
     elif level.lower() == "high":
-        llm = ChatOpenAI(model_name="gpt-5.6-sol", temperature=0)
+        llm = ChatOpenAI(model_name="gpt-5.6-sol", temperature=0, model_kwargs={
+        "reasoning_effort": "none"
+        })
     else:
         raise ValueError("Invalid level. Please choose from 'low', 'medium', or 'high'.")
 
