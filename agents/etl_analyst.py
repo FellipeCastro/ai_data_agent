@@ -12,7 +12,7 @@ from langchain.tools import tool
 from IPython.display import display, Image
 
 
-#------------------------------------ AGENT TOOLS ------------------------------------#
+# tools
 
 
 @tool
@@ -88,7 +88,7 @@ llm = pick_llm("medium")
 llm_bind = llm.bind_tools(tools)
 
 
-# ---------------------------------------- AGENT GRAPH ---------------------------------------- #
+# agent graph
 
 def llm_node(state:ETLAgentSchema):
 
