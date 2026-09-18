@@ -18,4 +18,4 @@ class JudgeSchema(BaseModel):
     comments: str = Field(..., description="A comment explaining the reasoning behind the judgment of the SQL query's safety")
 
 class ETLAgentSchema(BaseModel):
-    messages: Annotated[list, add] = Field(..., "List of messages to be processed by the ETL Agent")
+    messages : Annotated[list,add] = Field(..., description="List of messages to be processed by the ETL agent")
